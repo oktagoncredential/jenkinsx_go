@@ -40,29 +40,55 @@ pipeline {
         }
       }
 
-      stage('CI Build Develop') {
+      stage('Build Develop') {
         when {
           branch 'develop'
         }
-        environment {
-          PREVIEW_VERSION = "develop"
-          PREVIEW_NAMESPACE = "$APP_NAME-$BRANCH_NAME".toLowerCase()
-          HELM_RELEASE = "$PREVIEW_NAMESPACE".toLowerCase()
-        }
         steps {
-          dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
-            checkout scm
-            container('go') {
-              sh "make linux"
-              sh 'export VERSION=$PREVIEW_VERSION && skaffold build -f skaffold.yaml'
+          container('go') {
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
+              checkout scm
+            }
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/jenkinsx-go') {
+                // ensure we're not on a detached head
+                sh "git checkout develop"
+                // until we switch to the new kubernetes / jenkins credential implementation use git credentials store
+                sh "git config --global credential.helper store"
 
-              sh "jx step post build --image $DOCKER_REGISTRY/$ORG/$APP_NAME:$PREVIEW_VERSION"
+                sh "jx step git credentials"
+            }
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
+              // so we can retrieve the version in later steps
+              sh "echo \$(jx-release-version) > VERSION"
+            }
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/jenkinsx-go') {
+              sh "make tag"
+            }
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
+              container('go') {
+                sh "make build"
+                sh 'export VERSION=`cat VERSION` && skaffold build -f skaffold.yaml'
+
+                sh "jx step post build --image $DOCKER_REGISTRY/$ORG/$APP_NAME:dev-\$(cat VERSION)"
+              }
             }
           }
-          dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/preview') {
+        }
+      }
+      stage('Promote to Develop Environments') {
+        when {
+          branch 'develop'
+        }
+        steps {
+          dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/jenkinsx-go') {
             container('go') {
-              sh "make preview"
-              sh "jx preview --app $APP_NAME --dir ../.."
+              sh 'jx step changelog --version v\$(cat ../../VERSION)'
+
+              // release the helm chart
+              sh 'jx step helm release'
+
+              // promote 'develop' Environments
+              sh 'jx promote -b --timeout 1h --version \$(cat ../../VERSION) --env develop --verbose'
             }
           }
         }
