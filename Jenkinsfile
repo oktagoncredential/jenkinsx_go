@@ -84,7 +84,7 @@ pipeline {
               sh 'jx step helm release'
 
               // promote 'develop' Environments
-              sh 'jx promote -b --timeout 1h --version develop --env develop --verbose'
+              sh 'jx promote -b --timeout 1h --env develop --verbose'
             }
           }
         }
