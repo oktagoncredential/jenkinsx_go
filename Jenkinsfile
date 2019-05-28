@@ -59,14 +59,17 @@ pipeline {
             }
             dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
               // so we can retrieve the version in later steps
-              sh "echo develop > VERSION"
+              sh "echo \$(jx-release-version) > VERSION"
+            }
+            dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/jenkinsx-go') {
+              sh "make tag"
             }
             dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go') {
               container('go') {
                 sh "make build"
                 sh 'export VERSION=`cat VERSION` && skaffold build -f skaffold.yaml'
 
-                sh "jx step post build --image $DOCKER_REGISTRY/$ORG/$APP_NAME:\$(cat VERSION)"
+                sh "jx step post build --image $DOCKER_REGISTRY/$ORG/$APP_NAME:dev-\$(cat VERSION)"
               }
             }
           }
@@ -79,12 +82,13 @@ pipeline {
         steps {
           dir ('/home/jenkins/go/src/github.com/oktagoncredential/jenkinsx-go/charts/jenkinsx-go') {
             container('go') {
+              sh 'jx step changelog --version v\$(cat ../../VERSION)'
 
               // release the helm chart
               sh 'jx step helm release'
 
               // promote 'develop' Environments
-              sh 'jx promote -b --timeout 1h --env develop --verbose'
+              sh 'jx promote -b --timeout 1h --env develop --verbose --version \$(cat ../../VERSION)'
             }
           }
         }
