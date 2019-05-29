@@ -7,7 +7,7 @@ import (
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
-	title := "Feature A Implemented."
+	title := "Feature A Implemented.\n Feature B Implemented."
 
 	from := ""
 	if r.URL != nil {
