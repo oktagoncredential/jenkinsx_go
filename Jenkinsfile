@@ -7,6 +7,7 @@ pipeline {
       APP_NAME          = 'jenkinsx-go'
       GIT_PROVIDER      = 'github.com'
       CHARTMUSEUM_CREDS = credentials('jenkins-x-chartmuseum')
+      VERSION           = '0.2.0-SNAPSHOT'
     }
     stages {
 
